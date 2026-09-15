@@ -107,6 +107,7 @@ fun FullPlayerScreen(
         ).systemBarsPadding(),
     ) {
         val height = maxHeight
+        val isLandscape = maxWidth > maxHeight
         // ponytail: 只在顶栏与封面识别收起手势，避免抢占歌词滚动和进度拖动；全屏边缘手势可后续扩展。
         val dismissGesture = Modifier.pointerInput(height, density) {
             val velocity = VelocityTracker()
@@ -142,7 +143,7 @@ fun FullPlayerScreen(
                 }
                 IconButton(onClick = onQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "播放队列") }
             }
-            if (maxWidth > maxHeight) {
+            if (isLandscape) {
                 Row(Modifier.weight(1f).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(0.42f).fillMaxHeight().padding(16.dp), contentAlignment = Alignment.Center) {
                         PlayerHero(state, lyricsVisible, artworkModifier, dismissGesture)

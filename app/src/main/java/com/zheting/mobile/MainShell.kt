@@ -119,7 +119,8 @@ fun MainShell() {
                         // 保留 Mini Player 的布局空间，展开时底下的页面不跳动。
                         if (playerState.hasTarget) {
                             Box(Modifier.fillMaxWidth().height(miniHeight).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                                AnimatedVisibility(
+                                // 避免捕获外层 ColumnScope 的 AnimatedVisibility 重载。
+                                androidx.compose.animation.AnimatedVisibility(
                                     visible = !playerExpanded,
                                     enter = fadeIn(tween(180)), exit = fadeOut(tween(120)),
                                 ) mini@{
