@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  * - 歌曲装载交给 [SongLoadCoordinator]（快速切歌取消 + 迟到响应隔离在这里收敛）；
  * - 进度由常驻 ticker 驱动，暂停时也持续同步（seek 后立即反馈）。
  */
-@UnstableApi
+@OptIn(UnstableApi::class)
 class PlaybackController(
     private val player: ExoPlayer,
     resolver: PlaybackUrlResolver,

@@ -17,7 +17,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * - 挂起期间被取消（快速切歌）会卸载 listener，不干扰后续装载；
  * - 无 URL/耗尽时的清场由 [onExhausted] 负责，错误文案由协调器结果回调上抛。
  */
-@UnstableApi
+@OptIn(UnstableApi::class)
 class ExoMediaSink(
     private val player: ExoPlayer,
 ) : MediaSink {

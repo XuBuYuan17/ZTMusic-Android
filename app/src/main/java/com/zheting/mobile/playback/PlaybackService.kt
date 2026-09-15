@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.first
  * - 后台播放：前台服务 + 默认媒体通知（DefaultMediaNotificationProvider 自动建 channel）；
  * - onTaskRemoved 不主动停服：滑动清除任务后继续播放。
  */
-@UnstableApi
+@OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
