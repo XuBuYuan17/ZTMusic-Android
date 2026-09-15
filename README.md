@@ -17,7 +17,7 @@ Kotlin + Jetpack Compose + Material 3。当前处于阶段 1：工程骨架 + �
 | Kotlin | 2.1.20 | Kotlin 稳定版（Compose 1.11 线要求 stdlib ≥2.1.20） |
 | Jetpack Compose BOM | 2026.06.01（compose 1.11.4 · material3 1.4.0） | [Compose↔Kotlin 兼容映射](https://developer.android.com/jetpack/compose/kotlin)：Kotlin 2.1.20 |
 | Navigation Compose | 2.8.9 | androidx 稳定版 |
-| compileSdk / targetSdk / minSdk | 36 / 35 / 26 | AGP 8.9.1 官方测试上限为 36；Compose BOM 2026.06.01（compose 1.11.4）minCompileSdk=35、Coil 3.5.0（依赖 compose 1.11.1）≤36 —— 全库均 ≤36，无需压制提示 |
+| compileSdk / targetSdk / minSdk | 36 / 35 / 26 | AGP 8.9.1 官方测试上限为 36；Compose BOM 2026.06.01（compose 1.11.4）minCompileSdk=35、Coil 3.2.0（stdlib 要求 2.1.20，android AAR minCompileSdk=1）≤36 —— 全库均 ≤36，无需压制提示 |
 | applicationId | `com.zheting.mobile` | 与原 Tauri Android 版（`zheting`）独立，可并存安装 |
 
 版本号由 `gradle/libs.versions.toml` 统一管理，禁止动态版本。

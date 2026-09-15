@@ -130,6 +130,7 @@ URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统�
   - BOM `2025.04.00` 的 pom 实际映射 compose **1.7.8**（≤35）；
   - 真正抬高 Compose 全家到 **1.12.0（minCompileSdk=37）** 的是 `io.coil-kt.coil3:coil-compose-core-android:3.6.2` 对其的**硬依赖**（Gradle 解析取最高者，BOM 约束不敌）；26 条 AAR metadata 报错全部来自 coil 3.6.2 + compose 1.12.0 系，无其它库。
   - `coil-compose-core-android:3.5.0` 硬依赖 compose **1.11.1**（minCompileSdk=35）。
+  - **Kotlin 依赖连锁（第五轮 CI 暴露）**：3.5.0 及之后的 coil 全部要求过新 Kotlin——`coil-network-okhttp` 的 stdlib `requires` 依次为 3.5.0→**2.4.0**、3.4.0→2.3.10、3.3.0→2.2.0；只有 **coil 3.2.0 → stdlib `2.1.20`**（=当前 Kotlin）且 `coil-compose-android` AAR `minCompileSdk=1`、依赖 `org.jetbrains.compose.foundation 1.8.0`（≤36）、且 `coil-network-okhttp` 为普通 jar（无 AAR 校验）。**最终 coil 取 3.2.0**，BOM/Kotlin/compileSdk 不再变。
   - compose 1.11.4 的 module 元数据要求 kotlin-stdlib **2.1.20** → Kotlin **2.1.10 → 2.1.20**（同次版本补丁级，官方存在），避免编译器读不到新库元数据。
 - **最终版本组合（全校验过 minCompileSdk）**：
   - Compose BOM `2025.04.00` → **`2026.06.01`**（映射 compose 1.11.4 + material3 1.4.0，ui-android 1.11.4 AAR `minCompileSdk=35`）；
