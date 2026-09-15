@@ -14,6 +14,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +64,7 @@ import com.zheting.mobile.ui.theme.Spacing
 fun SearchScreen(
     modifier: Modifier = Modifier,
     onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
+    currentSongId: String? = null,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory()),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -66,17 +75,25 @@ fun SearchScreen(
         PageTitle(text = "搜索")
         SearchField(
             query = queryText,
-            onQueryChange = { queryText = it },
+            onQueryChange = { queryText = it; if (it.isBlank()) viewModel.search("") },
             onSearch = viewModel::search,
         )
         when (val state = uiState) {
-            SearchUiState.Idle -> CenteredBox { EmptyView("搜索歌曲", "输入关键词，查找网易云音乐歌曲") }
+            SearchUiState.Idle -> CenteredBox {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.MusicNote, null, Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f))
+                    Spacer(Modifier.height(20.dp))
+                    EmptyView("下一首心动，在这里", "输入歌名、歌手或专辑名称")
+                }
+            }
             SearchUiState.Loading -> CenteredBox { LoadingView(message = "正在搜索…") }
             is SearchUiState.Content -> SearchResults(
                 state = state,
                 onRetrySearch = viewModel::search,
                 onLoadMore = viewModel::loadMore,
                 onSongClick = onSongClick,
+                currentSongId = currentSongId,
             )
         }
     }
@@ -89,6 +106,7 @@ private fun SearchResults(
     onRetrySearch: (String) -> Unit,
     onLoadMore: () -> Unit,
     onSongClick: (songs: List<Song>, index: Int) -> Unit,
+    currentSongId: String?,
 ) {
     if (state.songs.isEmpty()) {
         if (state.error != null) {
@@ -117,13 +135,18 @@ private fun SearchResults(
         state = listState,
         contentPadding = PaddingValues(bottom = Spacing.huge),
     ) {
-        itemsIndexed(state.songs, key = { _, song -> song.id }) { index, song ->
+        item(key = "results_heading") {
+            Text("歌曲", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = Spacing.large, vertical = Spacing.medium))
+        }
+        itemsIndexed(state.songs, key = { index, song -> "$index:${song.id}" }) { index, song ->
             SongRow(
                 title = song.name,
                 subtitle = song.artistLabel,
                 coverUrl = song.coverUrl,
                 trailingText = formatDuration(song.durationMs),
                 onClick = { onSongClick(state.songs, index) },
+                isCurrent = song.id == currentSongId,
             )
         }
         // 页脚：加载更多进行中 / 失败重试 / 全部加载完
@@ -192,14 +215,20 @@ private fun SearchField(
     onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
     TextField(
         value = query,
         onValueChange = onQueryChange,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.large),
-        placeholder = { Text("搜索歌曲") },
+        placeholder = { Text("歌名、歌手、专辑") },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Close, "清除搜索") }
+            }
+        },
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = TextFieldDefaults.colors(
@@ -209,6 +238,6 @@ private fun SearchField(
             unfocusedIndicatorColor = Color.Transparent,
         ),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch(query) }),
+        keyboardActions = KeyboardActions(onSearch = { onSearch(query); focusManager.clearFocus() }),
     )
 }

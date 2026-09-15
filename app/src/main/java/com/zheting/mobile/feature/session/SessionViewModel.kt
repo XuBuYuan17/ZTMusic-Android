@@ -52,6 +52,13 @@ class SessionViewModel(private val repository: SessionRepository) : ViewModel() 
 
     val apiBase: String get() = repository.apiBase
 
+    fun refresh() {
+        if (_uiState.value is SessionUiState.Loading) return
+        _uiState.value = SessionUiState.Loading
+        started = false
+        start()
+    }
+
     companion object {
         fun factory(): ViewModelProvider.Factory = viewModelFactory {
             initializer {

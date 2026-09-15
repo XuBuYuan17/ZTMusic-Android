@@ -1,5 +1,14 @@
 package com.zheting.mobile.feature.playlist
 
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +63,7 @@ fun PlaylistDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
+    currentSongId: String? = null,
     viewModel: PlaylistDetailViewModel = viewModel(
         key = "playlist_$playlistId",
         factory = PlaylistDetailViewModel.factory(playlistId),
@@ -77,7 +87,7 @@ fun PlaylistDetailScreen(
             is PlaylistDetailUiState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 ErrorView(state.message, onRetry = viewModel::load)
             }
-            is PlaylistDetailUiState.Content -> PlaylistContent(state, viewModel::loadMore, onSongClick)
+            is PlaylistDetailUiState.Content -> PlaylistContent(state, viewModel::loadMore, onSongClick, currentSongId)
         }
     }
 }
@@ -87,6 +97,7 @@ private fun PlaylistContent(
     state: PlaylistDetailUiState.Content,
     onLoadMore: () -> Unit,
     onSongClick: (songs: List<Song>, index: Int) -> Unit,
+    currentSongId: String?,
 ) {
     val listState = rememberLazyListState()
     val shouldLoadMore by remember(state.songs.size, state.hasMore, state.loadingMore, state.loadMoreError) {
@@ -105,7 +116,7 @@ private fun PlaylistContent(
         state = listState,
         contentPadding = PaddingValues(bottom = Spacing.huge),
     ) {
-        item(key = "header") { PlaylistHeader(state) }
+        item(key = "header") { PlaylistHeader(state) { onSongClick(state.songs, 0) } }
         if (state.songs.isEmpty()) {
             when {
                 state.loadMoreError != null -> item(key = "empty_error") {
@@ -122,13 +133,14 @@ private fun PlaylistContent(
                 }
             }
         } else {
-            itemsIndexed(state.songs, key = { _, song -> song.id }) { index, song ->
+            itemsIndexed(state.songs, key = { index, song -> "$index:${song.id}" }) { index, song ->
                 SongRow(
                     title = song.name,
                     subtitle = song.artistLabel,
                     coverUrl = song.coverUrl,
                     trailingText = formatDuration(song.durationMs),
                     onClick = { onSongClick(state.songs, index) },
+                    isCurrent = song.id == currentSongId,
                 )
             }
         }
@@ -163,52 +175,52 @@ private fun PlaylistContent(
     }
 }
 
-/** 封面头部：方形封面 + 歌名/创建者/加载进度，文字自适应剩余宽度。 */
+
 @Composable
-private fun PlaylistHeader(state: PlaylistDetailUiState.Content) {
+private fun PlaylistHeader(state: PlaylistDetailUiState.Content, onPlay: () -> Unit) {
     val detail = state.detail
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.large, vertical = Spacing.small),
-        verticalAlignment = Alignment.CenterVertically,
+    var descriptionExpanded by rememberSaveable(detail.id) { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Artwork(
-            modifier = Modifier.size(160.dp),
+            Modifier.widthIn(max = 280.dp).fillMaxWidth(0.82f).aspectRatio(1f),
             imageUrl = detail.coverUrl,
-            cornerRadiusDp = 12,
+            cornerRadiusDp = 14,
         )
-        Spacer(Modifier.width(Spacing.medium))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = detail.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(Spacing.xSmall))
-            Text(
-                text = detail.creatorName,
-                style = MaterialTheme.typography.bodyMedium,
+        Spacer(Modifier.height(24.dp))
+        Text(detail.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center)
+        if (detail.creatorName.isNotBlank()) {
+            Text(detail.creatorName, style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp),
+                textAlign = TextAlign.Center)
+        }
+        Text("${state.total} 首歌曲", style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+        if (detail.description.isNotBlank()) {
+            Text(detail.description, style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "已加载 ${state.loadedCount.coerceAtMost(state.total)} / ${state.total} 首",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (detail.description.isNotBlank()) {
-                Text(
-                    text = detail.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                maxLines = if (descriptionExpanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+            TextButton(onClick = { descriptionExpanded = !descriptionExpanded }, modifier = Modifier.align(Alignment.End)) {
+                Text(if (descriptionExpanded) "收起简介" else "展开简介")
             }
+        }
+        Button(
+            onClick = onPlay, enabled = state.songs.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
+        ) {
+            Icon(Icons.Default.PlayArrow, null, Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (state.hasMore) "播放已加载的 ${state.songs.size} 首" else "播放全部",
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 4.dp))
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.zheting.mobile.ui.components
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -41,7 +40,7 @@ fun PlaylistCard(
             text = name,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Text(

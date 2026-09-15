@@ -15,7 +15,7 @@ val AppTypography = Typography(
         fontSize = 32.sp,
         lineHeight = 38.sp,
         fontWeight = FontWeight.Bold,
-        letterSpacing = (-0.5).sp,
+        letterSpacing = 0.sp,
     ),
     // 次级区块标题
     titleLarge = TextStyle(

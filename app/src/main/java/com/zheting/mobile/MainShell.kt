@@ -1,31 +1,48 @@
 package com.zheting.mobile
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -42,152 +59,184 @@ import com.zheting.mobile.feature.player.MiniPlayer
 import com.zheting.mobile.feature.player.PlayerQueueSheet
 import com.zheting.mobile.feature.playlist.PlaylistDetailScreen
 import com.zheting.mobile.feature.search.SearchScreen
+import com.zheting.mobile.feature.session.SessionScreen
 import com.zheting.mobile.playback.PlaybackBridge
 import com.zheting.mobile.playback.PlaybackLauncher
 import com.zheting.mobile.playback.PlaybackUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 
-/** 路由表：底部导航三入口 + 歌单详情。 */
 object Destinations {
     const val HOME = "home"
     const val SEARCH = "search"
     const val LIBRARY = "library"
-
+    const val ACCOUNT = "account"
     const val ARG_PLAYLIST_ID = "playlistId"
     const val PLAYLIST_DETAIL = "playlist/{$ARG_PLAYLIST_ID}"
-
-    /** 组装跳转歌单详情的实际路由。 */
     fun playlistDetail(playlistId: String) = "playlist/$playlistId"
 }
 
-private data class BottomDestination(
-    val route: String,
-    val label: String,
-    val icon: ImageVector,
-)
+private data class BottomDestination(val route: String, val label: String, val icon: ImageVector)
 
 private val bottomDestinations = listOf(
-    BottomDestination(Destinations.HOME, "首页", Icons.Filled.Home),
-    BottomDestination(Destinations.SEARCH, "搜索", Icons.Filled.Search),
-    BottomDestination(Destinations.LIBRARY, "我的", Icons.Filled.Person),
+    BottomDestination(Destinations.HOME, "首页", Icons.Default.Home),
+    BottomDestination(Destinations.LIBRARY, "资料库", Icons.Default.LibraryMusic),
+    BottomDestination(Destinations.SEARCH, "搜索", Icons.Default.Search),
 )
 
-/**
- * 应用主壳：底部三 tab + 歌单详情导航 + 播放器层。
- * - 播放器控制器唯一实例在 PlaybackService，页面只读它的 StateFlow；切页面不重建、不重载；
- * - Mini Player 常驻底栏上方，点击展开全屏播放器（本轮为简单淡入过渡，Loop 7 换连续动画）；
- * - 全屏/队列同为覆盖层，不经导航栈，播放状态不随页面生命周期变化。
- */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainShell() {
     val navController = rememberNavController()
     val context = LocalContext.current
-
-    // 播放器状态：控制器未启动时用空态兜底（列表仍可点歌，点歌即拉起服务）
-    val playController by PlaybackBridge.controllerFlow.collectAsState()
+    val focus = LocalFocusManager.current
+    val miniHeight = with(LocalDensity.current) {
+        (MaterialTheme.typography.titleMedium.lineHeight.toDp() +
+            MaterialTheme.typography.bodyMedium.lineHeight.toDp() + 24.dp).coerceAtLeast(72.dp)
+    }
+    val playController by PlaybackBridge.controllerFlow.collectAsStateWithLifecycle()
     val idleState = remember { MutableStateFlow(PlaybackUiState()) }
-    val playerState by (playController?.uiState ?: idleState).collectAsState()
-
+    val playerState by (playController?.uiState ?: idleState).collectAsStateWithLifecycle()
     var playerExpanded by rememberSaveable { mutableStateOf(false) }
     var queueVisible by rememberSaveable { mutableStateOf(false) }
-
+    val expandPlayer = { focus.clearFocus(); playerExpanded = true }
+    val openAccount = { navController.navigate(Destinations.ACCOUNT) { launchSingleTop = true } }
     val onSongClick: (List<Song>, Int) -> Unit = { songs, index ->
+        focus.clearFocus()
         PlaybackLauncher.play(context, songs, index)
-        // 整队更换后回到收起态，避免旧展开叠在新队列上（连续点击不堆叠）
         queueVisible = false
     }
+    LaunchedEffect(playerState.hasTarget) {
+        if (!playerState.hasTarget) playerExpanded = false
+    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = {
-                Column {
-                    AnimatedVisibility(visible = playerState.hasTarget && !playerExpanded) {
-                        MiniPlayer(
-                            state = playerState,
-                            onExpand = { playerExpanded = true },
-                            onTogglePlay = { playController?.togglePlay() },
-                            onNext = { playController?.next() },
-                        )
-                    }
-                    NavigationBar(
-                        // 克制材质：底栏用容器层色，不再另起重色块
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 0.dp,
-                    ) {
-                        val backStackEntry by navController.currentBackStackEntryAsState()
-                        val currentDestination = backStackEntry?.destination
-                        bottomDestinations.forEach { dest ->
-                            NavigationBarItem(
-                                selected = currentDestination?.hierarchy?.any { it.route == dest.route } == true,
-                                onClick = {
-                                    navController.navigate(dest.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+    SharedTransitionLayout {
+        val sharedScope = this
+        Box(Modifier.fillMaxSize()) {
+            Scaffold(
+                modifier = if (playerExpanded || sharedScope.isTransitionActive) Modifier.clearAndSetSemantics {} else Modifier,
+                bottomBar = {
+                    Column {
+                        // 保留 Mini Player 的布局空间，展开时底下的页面不跳动。
+                        if (playerState.hasTarget) {
+                            Box(Modifier.fillMaxWidth().height(miniHeight).padding(horizontal = 12.dp, vertical = 4.dp)) {
+                                AnimatedVisibility(
+                                    visible = !playerExpanded,
+                                    enter = fadeIn(tween(180)), exit = fadeOut(tween(120)),
+                                ) mini@{
+                                    MiniPlayer(
+                                        state = playerState,
+                                        onExpand = expandPlayer,
+                                        onTogglePlay = { playController?.togglePlay() },
+                                        onNext = { playController?.next() },
+                                        modifier = with(sharedScope) {
+                                            Modifier.sharedBounds(
+                                                rememberSharedContentState("player-container"), this@mini,
+                                                boundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 400f) },
+                                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                                            )
+                                        },
+                                        artworkModifier = with(sharedScope) {
+                                            Modifier.sharedElement(
+                                                rememberSharedContentState("player-artwork"), this@mini,
+                                                boundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 400f) },
+                                            )
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                        NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow, tonalElevation = 0.dp) {
+                            val backStackEntry by navController.currentBackStackEntryAsState()
+                            val currentDestination = backStackEntry?.destination
+                            bottomDestinations.forEach { dest ->
+                                NavigationBarItem(
+                                    selected = currentDestination?.hierarchy?.any { it.route == dest.route } == true,
+                                    onClick = {
+                                        navController.navigate(dest.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = { Icon(dest.icon, contentDescription = dest.label) },
-                                label = { Text(dest.label) },
-                            )
+                                    },
+                                    icon = { Icon(dest.icon, null) },
+                                    label = { Text(dest.label) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = Color.Transparent,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    ),
+                                )
+                            }
                         }
                     }
+                },
+            ) { innerPadding ->
+                NavHost(navController, startDestination = Destinations.HOME, modifier = Modifier.padding(innerPadding)) {
+                    composable(Destinations.HOME) {
+                        HomeScreen(
+                            onPlaylistClick = { navController.navigate(Destinations.playlistDetail(it)) },
+                            onSongClick = onSongClick, onAccount = openAccount, currentSongId = playerState.currentSong?.id,
+                        )
+                    }
+                    composable(Destinations.SEARCH) {
+                        SearchScreen(onSongClick = onSongClick, currentSongId = playerState.currentSong?.id)
+                    }
+                    composable(Destinations.LIBRARY) {
+                        LibraryScreen(
+                            currentSong = playerState.currentSong, queueCount = playerState.queue.size,
+                            onAccount = openAccount, onQueue = { queueVisible = true }, onPlayer = expandPlayer,
+                            onExplore = { navController.navigate(Destinations.HOME) { launchSingleTop = true; popUpTo(Destinations.HOME) } },
+                        )
+                    }
+                    composable(Destinations.ACCOUNT) { SessionScreen(onBack = { navController.popBackStack() }) }
+                    composable(Destinations.PLAYLIST_DETAIL,
+                        arguments = listOf(navArgument(Destinations.ARG_PLAYLIST_ID) { type = NavType.StringType })) { entry ->
+                        PlaylistDetailScreen(
+                            playlistId = entry.arguments?.getString(Destinations.ARG_PLAYLIST_ID).orEmpty(),
+                            onBack = { navController.popBackStack() },
+                            onSongClick = onSongClick, currentSongId = playerState.currentSong?.id,
+                        )
+                    }
                 }
-            },
-        ) { innerPadding ->
-            NavHost(
-                navController = navController,
-                startDestination = Destinations.HOME,
-                modifier = Modifier.padding(innerPadding),
-            ) {
-                composable(Destinations.HOME) {
-                    HomeScreen(
-                        onPlaylistClick = { id ->
-                            navController.navigate(Destinations.playlistDetail(id))
+            }
+            AnimatedVisibility(
+                visible = playerExpanded && playerState.hasTarget,
+                enter = fadeIn(tween(180)), exit = fadeOut(tween(160)),
+            ) full@{
+                Box(Modifier.fillMaxSize()) {
+                    // 截住播放器空白处的点击，防止触发下面的列表或导航。
+                    Box(Modifier.fillMaxSize().clickable(
+                        interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {},
+                    ).clearAndSetSemantics {})
+                    FullPlayerScreen(
+                        state = playerState,
+                        onTogglePlay = { playController?.togglePlay() },
+                        onNext = { playController?.next() },
+                        onPrevious = { playController?.previous() },
+                        onSeek = { playController?.seekTo(it) },
+                        onQueue = { queueVisible = true },
+                        onClose = { playerExpanded = false; queueVisible = false },
+                        modifier = with(sharedScope) {
+                            Modifier.sharedBounds(
+                                rememberSharedContentState("player-container"), this@full,
+                                boundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 400f) },
+                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds(),
+                            )
                         },
-                        onSongClick = onSongClick,
-                    )
-                }
-                composable(Destinations.SEARCH) {
-                    SearchScreen(onSongClick = onSongClick)
-                }
-                composable(Destinations.LIBRARY) { LibraryScreen() }
-                composable(
-                    route = Destinations.PLAYLIST_DETAIL,
-                    arguments = listOf(navArgument(Destinations.ARG_PLAYLIST_ID) { type = NavType.StringType }),
-                ) { entry ->
-                    val id = entry.arguments?.getString(Destinations.ARG_PLAYLIST_ID).orEmpty()
-                    PlaylistDetailScreen(
-                        playlistId = id,
-                        onBack = { navController.popBackStack() },
-                        onSongClick = onSongClick,
+                        artworkModifier = with(sharedScope) {
+                            Modifier.sharedElement(
+                                rememberSharedContentState("player-artwork"), this@full,
+                                boundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 400f) },
+                            )
+                        },
                     )
                 }
             }
-        }
-
-        if (playerExpanded && playerState.hasTarget) {
-            FullPlayerScreen(
-                state = playerState,
-                onTogglePlay = { playController?.togglePlay() },
-                onNext = { playController?.next() },
-                onPrevious = { playController?.previous() },
-                onSeek = { playController?.seekTo(it) },
-                onQueue = { queueVisible = true },
-                onClose = {
-                    playerExpanded = false
-                    queueVisible = false
-                },
-            )
-        }
-
-        if (queueVisible && playerState.hasTarget) {
-            PlayerQueueSheet(
-                state = playerState,
-                onPlayAt = { playController?.playAt(it) },
-                onDismiss = { queueVisible = false },
-            )
+            if (queueVisible) {
+                PlayerQueueSheet(playerState, onPlayAt = { playController?.playAt(it) }, onDismiss = { queueVisible = false })
+            }
         }
     }
 }

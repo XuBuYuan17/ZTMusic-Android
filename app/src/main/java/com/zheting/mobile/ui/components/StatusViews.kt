@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material3.Icon
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,7 +36,7 @@ fun LoadingView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
         Spacer(Modifier.height(Spacing.medium))
         Text(
             text = message,
@@ -84,6 +89,11 @@ fun ErrorView(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        Icon(Icons.Default.CloudOff, null, Modifier.size(32.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Spacing.small))
+        Text("暂时无法加载", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(Spacing.xSmall))
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,

@@ -52,7 +52,7 @@ class SearchViewModel(private val repository: SearchRepository) : ViewModel() {
         }
         // 已展示同一关键词结果时不重复搜
         val current = _uiState.value
-        if (current is SearchUiState.Content && current.query == q) return
+        if (current is SearchUiState.Content && current.query == q && current.error == null) return
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _uiState.value = SearchUiState.Loading

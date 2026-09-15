@@ -1,6 +1,7 @@
 package com.zheting.mobile.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,18 +44,20 @@ fun SongRow(
     modifier: Modifier = Modifier,
     trailingText: String? = null,
     onClick: (() -> Unit)? = null,
+    isCurrent: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = Spacing.huge)
-            .padding(vertical = Spacing.xSmall)
+            .semantics { selected = isCurrent }
+            .background(if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.07f) else androidx.compose.ui.graphics.Color.Transparent)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = Spacing.large),
+            .padding(horizontal = Spacing.large, vertical = Spacing.xSmall),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Artwork(
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(48.dp),
             imageUrl = coverUrl,
             cornerRadiusDp = 6,
         )
@@ -63,6 +68,7 @@ fun SongRow(
         ) {
             Text(
                 text = title,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,

@@ -1,24 +1,31 @@
 package com.zheting.mobile.feature.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -26,42 +33,39 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zheting.mobile.playback.PlaybackUiState
 import com.zheting.mobile.ui.components.Artwork
 import com.zheting.mobile.ui.components.artistLabel
 import com.zheting.mobile.ui.components.formatPlaybackTime
-import com.zheting.mobile.ui.theme.Spacing
 
-/**
- * 全屏播放器（Apple Music 参考的静态布局：顶栏 → 大封面 → 歌曲信息 → 控制 → 进度）。
- * - 进度条拖动时由本地预览值驱动，松手才提交 seek；未知时长禁用拖动；
- * - 系统返回 / 关闭按钮共用同一 onClose 流程；播放状态读写全部来自 PlaybackController，
- *   页面切换不重建、不重载。
- */
 @Composable
 fun FullPlayerScreen(
     state: PlaybackUiState,
@@ -72,252 +76,204 @@ fun FullPlayerScreen(
     onQueue: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    artworkModifier: Modifier = Modifier,
 ) {
     val song = state.currentSong ?: return
+    val close by rememberUpdatedState(onClose)
     BackHandler(onBack = onClose)
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+    var lyricsVisible by rememberSaveable { mutableStateOf(false) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val offset by animateFloatAsState(
+        dragOffset,
+        animationSpec = if (dragging) snap() else spring(dampingRatio = 0.86f, stiffness = 450f),
+        label = "playerDrag",
+    )
+    val density = LocalDensity.current
+    BoxWithConstraints(
+        modifier.fillMaxSize().graphicsLayer {
+            translationY = offset
+            val shrink = (offset / size.height.coerceAtLeast(1f)).coerceIn(0f, 0.08f)
+            scaleX = 1f - shrink
+            scaleY = 1f - shrink
+            shape = RoundedCornerShape((shrink * 400).dp)
+            clip = true
+        }.background(
+            Brush.verticalGradient(listOf(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                MaterialTheme.colorScheme.surfaceContainerLow,
+                MaterialTheme.colorScheme.surface,
+            )),
+        ).systemBarsPadding(),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-                .padding(horizontal = Spacing.xLarge),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // 顶栏：收起 / 标题 / 队列
+        val height = maxHeight
+        // ponytail: 只在顶栏与封面识别收起手势，避免抢占歌词滚动和进度拖动；全屏边缘手势可后续扩展。
+        val dismissGesture = Modifier.pointerInput(height, density) {
+            val velocity = VelocityTracker()
+            detectVerticalDragGestures(
+                onDragStart = { dragging = true; velocity.resetTracking() },
+                onDragCancel = { dragging = false; dragOffset = 0f },
+                onDragEnd = {
+                    dragging = false
+                    val dismiss = shouldDismissPlayer(
+                        dragOffset / density.density, height.value,
+                        velocity.calculateVelocity().y / density.density,
+                    )
+                    if (dismiss) close()
+                    dragOffset = 0f
+                },
+            ) { change, amount ->
+                change.consume()
+                dragOffset = (dragOffset + amount).coerceAtLeast(0f)
+                velocity.addPosition(change.uptimeMillis, Offset(0f, dragOffset))
+            }
+        }
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().then(dismissGesture).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "收起播放器")
+                IconButton(onClick = onClose) { Icon(Icons.Default.KeyboardArrowDown, "收起播放器") }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.width(32.dp).height(4.dp).background(
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(2.dp)))
+                    Text("正在播放", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
                 }
-                Text(
-                    text = "正在播放",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = onQueue) {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "播放队列")
+                IconButton(onClick = onQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "播放队列") }
+            }
+            if (maxWidth > maxHeight) {
+                Row(Modifier.weight(1f).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(0.42f).fillMaxHeight().padding(16.dp), contentAlignment = Alignment.Center) {
+                        PlayerHero(state, lyricsVisible, artworkModifier, dismissGesture)
+                    }
+                    Column(Modifier.weight(0.58f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+                        PlayerControls(state, lyricsVisible, { lyricsVisible = !lyricsVisible }, onTogglePlay, onPrevious, onNext, onSeek, onQueue)
+                    }
                 }
-            }
-
-            // 封面：占满中部可用空间（上限 420dp，小屏不溢出）
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Artwork(
-                    modifier = Modifier
-                        .fillMaxWidth(0.86f)
-                        .aspectRatio(1f)
-                        .heightIn(max = 420.dp),
-                    imageUrl = song.coverUrl,
-                    cornerRadiusDp = 8,
-                )
-            }
-
-            // 歌曲信息
-            Text(
-                text = song.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.size(Spacing.xxSmall))
-            Text(
-                text = song.artistLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (state.error != null) {
-                Text(
-                    text = state.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = Spacing.xSmall),
-                )
-            }
-
-            // 控制区：上一首 / 播放 / 下一首（未实现的随机、循环不做死按钮占位）
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = Spacing.xLarge),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onPrevious, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "上一首", modifier = Modifier.size(32.dp))
-                }
-                Spacer(Modifier.width(Spacing.xLarge))
-                IconButton(onClick = onTogglePlay, enabled = !state.isLoading, modifier = Modifier.size(72.dp)) {
+            } else {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp)
+                        .heightIn(min = (height - 56.dp).coerceAtLeast(0.dp)),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                ) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface),
+                        Modifier.fillMaxWidth().height((height - 390.dp).coerceIn(172.dp, 380.dp)).padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(30.dp),
-                                color = MaterialTheme.colorScheme.background,
-                                strokeWidth = 2.5.dp,
-                                trackColor = Color.Transparent,
-                            )
-                        } else {
-                            Icon(
-                                imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (state.isPlaying) "暂停" else "播放",
-                                modifier = Modifier.size(38.dp),
-                                tint = MaterialTheme.colorScheme.background,
-                            )
-                        }
+                        PlayerHero(state, lyricsVisible, artworkModifier, dismissGesture)
                     }
-                }
-                Spacer(Modifier.width(Spacing.xLarge))
-                IconButton(onClick = onNext, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "下一首", modifier = Modifier.size(32.dp))
+                    PlayerControls(state, lyricsVisible, { lyricsVisible = !lyricsVisible }, onTogglePlay, onPrevious, onNext, onSeek, onQueue)
                 }
             }
-
-            PlayerProgress(state, onSeek)
-
-            Spacer(Modifier.size(Spacing.small))
         }
     }
 }
 
-/** 进度条 + 时间标签；拖动预览本地位置，松手提交 seek。 */
 @Composable
-private fun PlayerProgress(
+private fun PlayerHero(
     state: PlaybackUiState,
+    lyricsVisible: Boolean,
+    artworkModifier: Modifier,
+    dismissGesture: Modifier,
+) {
+    val scale by animateFloatAsState(if (state.isPlaying || state.isLoading) 1f else 0.9f,
+        animationSpec = spring(dampingRatio = 0.85f), label = "coverPlaybackScale")
+    if (lyricsVisible) {
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Artwork(artworkModifier.size(52.dp).then(dismissGesture), state.currentSong?.coverUrl, 8)
+            LyricsPanel(modifier = Modifier.weight(1f), lines = emptyList(), positionMs = state.positionMs, onSeek = {})
+        }
+    } else {
+        Box(Modifier.fillMaxSize().then(dismissGesture), contentAlignment = Alignment.Center) {
+            Artwork(
+                artworkModifier.aspectRatio(1f, matchHeightConstraintsFirst = true).widthIn(max = 360.dp)
+                    .graphicsLayer { scaleX = scale; scaleY = scale; shadowElevation = 12.dp.toPx(); shape = RoundedCornerShape(12.dp); clip = true },
+                state.currentSong?.coverUrl, 12,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerControls(
+    state: PlaybackUiState,
+    lyricsVisible: Boolean,
+    onLyrics: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    onQueue: () -> Unit,
 ) {
-    val durationMs = state.durationMs.coerceAtLeast(0L)
-    val isSeekable = durationMs > 0L
-    val maxMs = if (isSeekable) durationMs else 1L
-
-    var dragMs by remember { mutableStateOf<Long?>(null) }
-    // 切歌/时长变化时丢弃遗留拖动预览
-    LaunchedEffect(state.currentSong?.id, durationMs) { dragMs = null }
-
-    val displayMs = (dragMs ?: state.positionMs.coerceIn(0L, durationMs)).coerceIn(0L, maxMs)
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = formatPlaybackTime(displayMs),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.width(44.dp),
-            )
-            Slider(
-                value = displayMs.toFloat(),
-                onValueChange = { dragMs = it.toLong() },
-                valueRange = 0f..maxMs.toFloat(),
-                onValueChangeFinished = {
-                    dragMs?.let(onSeek)
-                    dragMs = null
-                },
-                enabled = isSeekable,
-                colors = SliderDefaults.colors(
-                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
-                    inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                    thumbColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = formatPlaybackTime(durationMs),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.End,
-                modifier = Modifier.width(44.dp),
-            )
+    val song = state.currentSong ?: return
+    Column(Modifier.fillMaxWidth().widthIn(max = 520.dp)) {
+        Text(song.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+            maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(song.artistLabel, style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (state.error != null) {
+            Text(state.error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        PlayerProgress(state, onSeek)
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onPrevious, modifier = Modifier.size(64.dp)) {
+                Icon(Icons.Default.SkipPrevious, "上一首", Modifier.size(40.dp))
+            }
+            IconButton(onClick = onTogglePlay, enabled = !state.isLoading, modifier = Modifier.size(80.dp)) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.onSurface)
+                } else {
+                    Icon(if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        if (state.isPlaying) "暂停" else "播放", Modifier.size(60.dp))
+                }
+            }
+            IconButton(onClick = onNext, modifier = Modifier.size(64.dp)) {
+                Icon(Icons.Default.SkipNext, "下一首", Modifier.size(40.dp))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            IconToggleButton(checked = lyricsVisible, onCheckedChange = { onLyrics() }) {
+                Icon(Icons.Default.Subtitles, if (lyricsVisible) "显示封面" else "显示歌词",
+                    tint = if (lyricsVisible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (state.isLoading) "正在准备播放…" else if (state.isPlaying) "用心听见" else "已暂停",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = onQueue) {
+                Icon(Icons.AutoMirrored.Filled.QueueMusic, "播放队列", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
 
-/** 播放队列底部弹层：序号 + 歌曲，高亮当前，点击跳播。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerQueueSheet(
-    state: PlaybackUiState,
-    onPlayAt: (Int) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    if (state.queue.isEmpty()) return
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "播放队列",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = Spacing.large, vertical = Spacing.small),
-            )
-            LazyColumn {
-                itemsIndexed(state.queue, key = { _, entry -> entry.song.id }) { index, entry ->
-                    val isCurrent = index == state.currentIndex
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onPlayAt(index) }
-                            .padding(horizontal = Spacing.large, vertical = Spacing.small),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = (index + 1).toString().padStart(2, '0'),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(32.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = entry.song.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = entry.song.artistLabel,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "正在播放",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-            }
+private fun PlayerProgress(state: PlaybackUiState, onSeek: (Long) -> Unit) {
+    val duration = state.durationMs.coerceAtLeast(0L)
+    var dragMs by remember(state.currentSong?.id, duration) { mutableStateOf<Long?>(null) }
+    val position = (dragMs ?: state.positionMs).coerceIn(0L, duration)
+    Column {
+        Slider(
+            value = position.toFloat(),
+            onValueChange = { dragMs = it.toLong() },
+            valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+            enabled = duration > 0L,
+            onValueChangeFinished = { dragMs?.let(onSeek); dragMs = null },
+            colors = SliderDefaults.colors(
+                activeTrackColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f),
+                thumbColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(if (position == 0L) "0:00" else formatPlaybackTime(position),
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (duration == 0L) "--:--" else "−" + if (duration == position) "0:00" else formatPlaybackTime(duration - position),
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -260,10 +260,50 @@ URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统�
 | Run 11-13 | lint 15→6→0 | 类级 `@UnstableApi` 对外传播 + lint 只认 androidx.annotation.OptIn | 改类内 `@OptIn(UnstableApi::class)`（import androidx 版） |
 | 终轮 | — | — | **BUILD SUCCESSFUL（test 66 / lint 0 err / assembleDebug）** |
 
-## 下一阶段入口
+## Loop 7 · Mini → 全屏连续过渡（2026-09-15，代码完成，待 CI 与真机录屏验证）
 
-- 待 Loop 5+6 CI 验证通过后，按序推进 **Loop 7 · Mini → 全屏连续过渡**：
-  以 `MainShell` 的 `playerExpanded`/`queueVisible` 为状态基座，用共享元素/手势绘制一套
-  协调的过渡（封面从 Mini 原位放大、容器圆角与背景渐变、底栏同步退场、
-  按下拉距离/速度决定收起或回弹），要求按实际测量边界计算、可中断反向、不能改播放状态。
+实现以 `MainShell` 的 `playerExpanded`/`queueVisible` 为状态基座，磁盘上一轮工作已落为完整实现
+（与 `ui-acceptance.md` 一致，明细见该文件；本段只记录与 Loop 7 验收项的对应关系）：
+
+| Loop 7 要求 | 落点 |
+|---|---|
+| 封面从 Mini 原位连续放大 | 两处 `sharedElement("player-artwork")` 在同一 `SharedTransitionLayout`（MainShell） |
+| 容器边界 / 圆角 / 背景连续变化 | `sharedBounds("player-container", scaleToBounds)` + 拖拽期 shrink 驱动 `graphicsLayer`（translationY/shape/clip） |
+| 文字与按钮协调进出 | 整屏表面与 Mini 条都在 sharedBounds 容器内，随比例缩放并淡入淡出（fadeIn 180 / fadeOut 160） |
+| 底栏同步退场/恢复 | 全屏是覆盖在 Scaffold 上的不透明层，展开即遮挡、关闭见底（未做滚动式退场动画，符合「先简单页面过渡」） |
+| 反向回收至真实 Mini 位置 | 收起时 reverse 共享过渡，回落到实际 Mini 测量位置 |
+| 从封面/标题区域下拉收起 | 拖拽手势只挂在 `PlayerHero`（封面 + 标题区），进度条与歌词滚动不在手势区内，互不冲突 |
+| 距离/速度决定收起或回弹 | `PlayerGesture.kt: shouldDismissPlayer`：位移 ≥ 高 20%（限幅 96–180dp）或 ≥24dp 且甩速 ≥900dp/s 关闭，否则回弹（spring 0.86/450） |
+| 系统返回/关闭/下拉同流程 | `BackHandler`、关闭按钮、拖拽松手全部走 `onClose`；`hasTarget=false` 时强制复位 `playerExpanded` |
+| 实际测量边界、可中断反向 | 阈值由 `BoxWithConstraints.maxHeight` 换算，无写死屏幕坐标；拖拽期 snap、松手 spring，可中途反向 |
+| 不改变播放状态 / 不堆叠 | 展开收起只动 `playerExpanded` 与焦点，不触 controller；布尔开关天然防堆叠 |
+| 测量失效降级 | shrink 由 `offset/size.height` 限幅 0–0.08，未测出高度时归零不崩，BackHandler 恒可用 |
+
+验收笔记：静态截图不能证明动画正确——连续展开收起十次、中途反向/返回/换曲、慢拖回弹、快甩关闭，
+需真机操作并录屏后据录屏核验（清单第 3–5 条）。当前**未提供录屏或帧率结论**。
+
 - 封面/媒体请求保持 Coil 独立实例（不挂会话拦截器，契约 §1.6）。
+
+## Loop 0 · 只读检查与设计基线（2026-09-15，未改源码）
+
+检查对象：原项目 `src/lib/`（client/session/auth store/normalize/provider/details/url-resolver/lyrics/lyrics-loader/queue/constants/home）+ 客户端全量结构与本文件、`api-contract.md`。
+
+**状态同步**：Loop 1–6 上部表格仍标「等待 CI 验证」为过期表述——CI 已全绿（test 66 / lint 0 / assembleDebug / APK 上传，见下方修复记录）；后续 loop 表述应改为「CI 已通过，真机未验」。
+
+**原项目关键逻辑核对（对照代码而非文档）**：
+- 歌单补全：`/playlist/detail` 得 trackIds + tracks 初始段；按 trackIds 序每批 50 调 `/song/detail`（去重、≤500/批），缺失占位；`at`→addTime、playlistIndex；trackIds>500 置 tracksPartial 延迟全量；首屏先 50 渐进 onProgress（`details.ts`）——与 `PlaylistRepository.nextChunk` 一致。
+- 播放降级链（`url-resolver.ts`）：0 预取/持久缓存 → 1 快速出声（standard/higher/preferred 非 unblock，首个非试听即停）→ 2 unblock → 3 `/song/url/match` → 4 老 `/song/url`(br 320000) → 5 试听候选 → 6 官方模板 `https://music.163.com/song/media/outer/url?id={id}.mp3`；FAST_TIMEOUT 3500ms；试听=`freeTrialInfo` 存在；`.music.126.net` http→https——与 `PlaybackUrlResolverImpl` Phase 1-6 一致。
+- 歌词：`/lyric`（provider 不用 `/lyric/new`）；**歌词时间用秒**，Loop 8 要求毫秒（实现时 LRC 解析按毫秒重写）；按时间键合并 lrc+tlyric+romalyric；loader=LRU 32 + pending 去重 + force。
+- 认证 QR（`auth.svelte.ts:299-371`）：getQrCode 前 clearCookie；轮询 1500ms；**只特判 803=成功/800=过期，801/802 继续轮询**（无差异化 UI）；失败退避 `1500×2^n` ≤3 次；90s 硬超时；开新轮询先取消旧的。
+- 队列：列表循环 `(i+1)%N` 一致；**差异**：客户端 previous 有「播过 3s 回本曲」(`RESTART_THRESHOLD_MS=3000`，Apple Music 适配)，原项目 getPrevIndex 直接回上一首——有意保留，Loop 11 验收表注明。
+
+**Loop 7/8/9 课前要点**：Loop 7=唯一剩余大块 UI（Mini→全屏连续过渡，验收要录屏）；Loop 8 先加 `/lyric` 端点+DTO+契约 §2.7+秒→毫秒；Loop 9 认证端点签名已在 NeteaseApi，QR 状态机照上表。**不做**：循环/随机模式、音质偏好 UI、URL 持久缓存、预取、热搜词、艺人/歌单搜索分类、`/lyric/new` 逐字（均路线图暂缓）。
+
+## UI 优先阶段（2026-09-15，已写代码，待编译与真机验收）
+
+- 依照“先写 UI，补全 UI 后再说别的”，补齐首页、搜索、歌单、资料库、账户、Mini、全屏、队列的界面与导航；统一深浅色主题。
+- Mini ↔ 全屏使用 Compose 共享封面与容器过渡，补下拉收起 / 回弹和横屏布局；保留现有播放服务。
+- 歌词行组件与预览已写；真实歌词、二维码登录、收藏 / 历史仍未接入，生产页面显示对应说明。
+- 支撑 UI 的状态修改仅为账户刷新与搜索同词失败后重试。网络接口、Repository、播放器核心及构建配置未修改。
+- 新增两项 UI 逻辑单元测试和八种 Compose 预览；尚未执行测试或渲染预览。本机无 Android SDK / Gradle 缓存、无连接设备，未安装依赖，未提交或推送。
+- 静态结构检查和 git diff --check 通过；本轮不能沿用 Loop 1–6 的旧 CI 结果。文件与验收清单见 [ui-acceptance.md](ui-acceptance.md)。

@@ -1,6 +1,5 @@
 package com.zheting.mobile.feature.session
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,107 +9,68 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.zheting.mobile.ui.components.Artwork
+import com.zheting.mobile.ui.components.ErrorView
+import com.zheting.mobile.ui.components.LoadingView
+import com.zheting.mobile.ui.components.PageTitle
 
-/**
- * 阶段 1 会话自检页：真实请求 /login/status 判定 应用↔后端↔账号 状态。
- * 后续阶段会被真正的 Home/登录入口页面替换，功能性内容到此为止，不占位。
- */
 @Composable
 fun SessionScreen(
+    onBack: () -> Unit = {},
     viewModel: SessionViewModel = viewModel(factory = SessionViewModel.factory()),
 ) {
     LaunchedEffect(Unit) { viewModel.start() }
-
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = "哲听 · ZT Music",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = "原生 Android 客户端 · 阶段 1",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(Modifier.height(8.dp))
-        OutlinedCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                InfoRow("API", viewModel.apiBase)
-                InfoRow("会话", when (state) {
-                    is SessionUiState.Loading -> "检测中…"
-                    is SessionUiState.NotLoggedIn -> "未登录"
-                    is SessionUiState.LoggedIn -> "已登录"
-                    is SessionUiState.Failed -> "异常"
-                })
-                when (val s = state) {
-                    is SessionUiState.Loading -> {
-                        Spacer(Modifier.height(16.dp))
-                        CircularProgressIndicator(Modifier.size(32.dp))
-                    }
-                    is SessionUiState.NotLoggedIn -> {
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "本地无有效登录态。二维码 / 手机 / 邮箱登录在本阶段未实现，见 docs/progress.md。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    is SessionUiState.LoggedIn -> {
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            "欢迎，${s.user.nickname}",
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            "uid=${s.user.userId}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    is SessionUiState.Failed -> {
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            s.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        Text(
-                            "无法连接后端或响应非法。若本机无网络代理请检查网络；错误信息为真实响应。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
+        PageTitle("账户")
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val user = (state as? SessionUiState.LoggedIn)?.user
+            if (user != null && user.avatarUrl.isNotBlank()) {
+                Artwork(Modifier.size(96.dp), user.avatarUrl, cornerRadiusDp = 48)
+            } else {
+                Icon(Icons.Default.AccountCircle, null, Modifier.size(96.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.height(24.dp))
+            when (val value = state) {
+                SessionUiState.Loading -> LoadingView(message = "正在检查登录状态…")
+                SessionUiState.NotLoggedIn -> {
+                    Text("以游客身份听歌", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(12.dp))
+                    Text("你可以浏览推荐、搜索和播放歌曲。\n当前版本暂未开放二维码登录。",
+                        textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                is SessionUiState.LoggedIn -> {
+                    Text(value.user.nickname, style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(8.dp))
+                    Text("已登录", color = MaterialTheme.colorScheme.primary)
+                }
+                is SessionUiState.Failed -> ErrorView(value.message, onRetry = viewModel::refresh)
+            }
+            Spacer(Modifier.height(24.dp))
+            if (state !is SessionUiState.Loading && state !is SessionUiState.Failed) {
+                OutlinedButton(onClick = viewModel::refresh) { Text("刷新登录状态") }
             }
         }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Column(Modifier.padding(vertical = 4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

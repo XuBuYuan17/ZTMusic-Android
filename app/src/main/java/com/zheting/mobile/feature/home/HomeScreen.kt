@@ -12,6 +12,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,19 +45,30 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onPlaylistClick: (playlistId: String) -> Unit = {},
     onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
+    onAccount: () -> Unit = {},
+    currentSongId: String? = null,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory()),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     LaunchedEffect(Unit) { viewModel.start() }
 
     when (val state = uiState) {
-        HomeUiState.Loading -> LoadingView(modifier = modifier.fillMaxSize())
+        HomeUiState.Loading -> androidx.compose.foundation.layout.Column(modifier.fillMaxSize()) {
+            PageTitle("哲听", subtitle = "此刻，听见喜欢")
+            LoadingView(modifier = Modifier.weight(1f))
+        }
         is HomeUiState.Content -> LazyColumn(
             modifier = modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = Spacing.xxLarge),
         ) {
-            item { PageTitle(text = "哲听") }
-            item { SectionHeader(text = "推荐歌单") }
+            item {
+                PageTitle(text = "哲听", subtitle = "此刻，听见喜欢") {
+                    IconButton(onClick = onAccount) {
+                        Icon(Icons.Default.AccountCircle, "我的账户", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            item { SectionHeader(text = "为你发现") }
             when {
                 state.playlistError != null ->
                     item { ErrorView(state.playlistError, onRetry = viewModel::load) }
@@ -68,28 +84,33 @@ fun HomeScreen(
                         items(state.playlists, key = { it.id }) { playlist ->
                             PlaylistCard(
                                 name = playlist.name,
-                                subtitle = "${playlist.trackCount} 首",
+                                subtitle = playlist.creatorName.ifBlank { if (playlist.trackCount > 0) "${playlist.trackCount} 首歌曲" else "精选歌单" },
                                 coverUrl = playlist.coverUrl,
                                 onClick = { onPlaylistClick(playlist.id) },
-                                modifier = Modifier.width(152.dp),
+                                modifier = Modifier.width(208.dp),
                             )
                         }
                     }
                 }
             }
-            item { SectionHeader(text = "新歌速递") }
+            item {
+                HorizontalDivider(Modifier.padding(horizontal = Spacing.large, vertical = Spacing.large),
+                    color = MaterialTheme.colorScheme.outlineVariant)
+                SectionHeader(text = "新歌速递")
+            }
             when {
                 state.newSongsError != null ->
                     item { ErrorView(state.newSongsError, onRetry = viewModel::load) }
                 state.newSongs.isEmpty() ->
                     item { EmptyView("暂无新歌", "换个时间再来看看") }
             }
-            itemsIndexed(state.newSongs, key = { _, song -> song.id }) { index, song ->
+            itemsIndexed(state.newSongs, key = { index, song -> "$index:${song.id}" }) { index, song ->
                 SongRow(
                     title = song.name,
                     subtitle = song.artistLabel,
                     coverUrl = song.coverUrl,
                     onClick = { onSongClick(state.newSongs, index) },
+                    isCurrent = song.id == currentSongId,
                 )
             }
         }

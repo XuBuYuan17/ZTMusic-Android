@@ -44,15 +44,14 @@ fun MiniPlayer(
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
+    artworkModifier: Modifier = Modifier,
 ) {
     val song = state.currentSong ?: return
     Surface(
-        shape = RoundedCornerShape(
-            topStart = 14.dp,
-            topEnd = 14.dp,
-        ),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 2.dp,
+        tonalElevation = 0.dp,
+        shadowElevation = 2.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
         Row(
@@ -63,7 +62,7 @@ fun MiniPlayer(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Artwork(
-                modifier = Modifier.size(44.dp),
+                modifier = artworkModifier.size(44.dp),
                 imageUrl = song.coverUrl,
                 cornerRadiusDp = 6,
             )
