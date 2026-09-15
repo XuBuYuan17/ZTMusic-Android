@@ -3,6 +3,7 @@ package com.zheting.mobile.playback
 import com.zheting.mobile.core.model.Song
 import com.zheting.mobile.core.network.SongUrlEndpoints
 import com.zheting.mobile.core.network.SongUrlResponse
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -39,7 +40,7 @@ class PlaybackUrlResolverImplTest {
     )
 
     @Test
-    fun `Phase1_standard非试听直接中标`() {
+    fun `Phase1_standard非试听直接中标`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { _, _ -> SongUrlResponse(data = listOf(item("http://std")) ) }
         }
@@ -53,7 +54,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase1_更高音质级别按顺序回退`() {
+    fun `Phase1_更高音质级别按顺序回退`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { level, _ ->
                 if (level == "standard") SongUrlResponse(data = listOf(item("http://std", trial = true)))
@@ -66,7 +67,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase2_普通全无音源时unblock补充`() {
+    fun `Phase2_普通全无音源时unblock补充`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { level, unblock ->
                 if (unblock == "true") SongUrlResponse(data = listOf(item("http://unblock")))
@@ -80,7 +81,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase3_v1两遍都为空走match`() {
+    fun `Phase3_v1两遍都为空走match`() = runTest {
         val ep = FakeEndpoints().apply {
             matchHandler = { SongUrlResponse(data = listOf(item("http://match"), item("http://match2"))) }
         }
@@ -90,7 +91,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase4_match为空走旧接口`() {
+    fun `Phase4_match为空走旧接口`() = runTest {
         val ep = FakeEndpoints().apply {
             legacyHandler = { _, br -> SongUrlResponse(data = listOf(item("http://legacy"))) }
         }
@@ -100,7 +101,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase5_只有试听片段时用试听兜底`() {
+    fun `Phase5_只有试听片段时用试听兜底`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { level, _ -> SongUrlResponse(data = listOf(item("http://trial-$level", trial = true))) }
         }
@@ -111,7 +112,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `Phase6_全链无结果用官方外链模板`() {
+    fun `Phase6_全链无结果用官方外链模板`() = runTest {
         val ep = FakeEndpoints()
         val urls = PlaybackUrlResolverImpl(ep).resolve(song)
 
@@ -119,7 +120,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `试听候选去重后按收集顺序入列`() {
+    fun `试听候选去重后按收集顺序入列`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { level, _ ->
                 if (level == "standard") SongUrlResponse(data = listOf(item("http://t", trial = true)))
@@ -132,7 +133,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `music_126_net的http统一升级为https`() {
+    fun `music_126_net的http统一升级为https`() = runTest {
         val ep = FakeEndpoints().apply {
             v1Handler = { _, _ -> SongUrlResponse(data = listOf(item("http://m9.music.126.net/abc"))) }
         }
@@ -142,7 +143,7 @@ class PlaybackUrlResolverImplTest {
     }
 
     @Test
-    fun `空字符串url视为无结果`() {
+    fun `空字符串url视为无结果`() = runTest {
         val ep = FakeEndpoints().apply {
             matchHandler = { SongUrlResponse(data = listOf(item(""))) }
         }
