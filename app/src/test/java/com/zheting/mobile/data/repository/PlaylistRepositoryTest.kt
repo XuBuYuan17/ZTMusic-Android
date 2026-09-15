@@ -8,6 +8,7 @@ import com.zheting.mobile.core.network.ListResponse
 import com.zheting.mobile.core.network.NeteaseApi
 import com.zheting.mobile.core.network.PlaylistDetailResponse
 import com.zheting.mobile.core.network.SongDetailResponse
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -95,7 +96,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun detail_partial_matchesContractS4() {
+    fun detail_partial_matchesContractS4() = runTest {
         val d = goodDetail()
         assertEquals("pl9", d.id)
         assertEquals(200, d.trackIds.size)
@@ -104,7 +105,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun nextChunk_respectsStartAndBatches50() {
+    fun nextChunk_respectsStartAndBatches50() = runTest {
         val d = goodDetail()
         // 首屏已加载 1 首，从下标 1 续补
         val r = repo.nextChunk(d, start = 1)
@@ -116,7 +117,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun nextChunk_lastBatch_hasMoreFalse() {
+    fun nextChunk_lastBatch_hasMoreFalse() = runTest {
         val d = goodDetail()
         // 模拟已 load 到 150，最后一批 50 → 200
         val r = repo.nextChunk(d, start = 150)
@@ -128,7 +129,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun nextChunk_missing_tracksBecomePlaceholders() {
+    fun nextChunk_missing_tracksBecomePlaceholders() = runTest {
         detailErrorCode = null
         trackIdsTotal = 3
         loadedTracks = 0
@@ -145,7 +146,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun nextChunk_emptyTrackIds_returnsEmpty() {
+    fun nextChunk_emptyTrackIds_returnsEmpty() = runTest {
         detailErrorCode = null
         val d = (repo.detail("ple") as NeteaseResult.Success).data.copy(trackIds = emptyList())
         val chunk = (repo.nextChunk(d, start = 0) as NeteaseResult.Success).data
@@ -155,7 +156,7 @@ class PlaylistRepositoryTest {
     }
 
     @Test
-    fun detail_codeNot200_apiError() {
+    fun detail_codeNot200_apiError() = runTest {
         detailErrorCode = -460
         val r = repo.detail("pl9")
         assertTrue(r is NeteaseResult.ApiError)

@@ -7,6 +7,7 @@ import com.zheting.mobile.core.network.ListResponse
 import com.zheting.mobile.core.network.NeteaseApi
 import com.zheting.mobile.core.network.PlaylistDetailResponse
 import com.zheting.mobile.core.network.SongDetailResponse
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -71,7 +72,7 @@ class HomeSearchRepositoryTest {
     private val search = SearchRepository(fakeApi)
 
     @Test
-    fun personalized_parsesAndEmptyConfirmed() {
+    fun personalized_parsesAndEmptyConfirmed() = runTest {
         listErrorCode = null
         val r = home.personalized(limit = 2)
         val refs = (r as NeteaseResult.Success).data
@@ -80,7 +81,7 @@ class HomeSearchRepositoryTest {
     }
 
     @Test
-    fun personalized_apiError() {
+    fun personalized_apiError() = runTest {
         listErrorCode = -460
         val r = home.personalized(limit = 2)
         assertTrue(r is NeteaseResult.ApiError)
@@ -88,7 +89,7 @@ class HomeSearchRepositoryTest {
     }
 
     @Test
-    fun newSongs_parsesAndUnifiesIdToString() {
+    fun newSongs_parsesAndUnifiesIdToString() = runTest {
         val r = home.newSongs(limit = 1)
         val songs = (r as NeteaseResult.Success).data
         assertEquals("1001", songs.single().id)
@@ -96,7 +97,7 @@ class HomeSearchRepositoryTest {
     }
 
     @Test
-    fun search_resultNull_isSuccessEmpty() {
+    fun search_resultNull_isSuccessEmpty() = runTest {
         val fake2 = object : NeteaseApi {
             override suspend fun cloudsearch(keywords: String, limit: Int, offset: Int): CloudsearchResponse =
                 CloudsearchResponse(code = 200, result = null)
@@ -119,7 +120,7 @@ class HomeSearchRepositoryTest {
     }
 
     @Test
-    fun search_parsesSongs_andMeta() {
+    fun search_parsesSongs_andMeta() = runTest {
         listErrorCode = null
         val r = search.searchSongs("关键词")
         val page = (r as NeteaseResult.Success).data
@@ -128,7 +129,7 @@ class HomeSearchRepositoryTest {
     }
 
     @Test
-    fun search_apiError() {
+    fun search_apiError() = runTest {
         listErrorCode = -460
         val r = search.searchSongs("x")
         assertTrue(r is NeteaseResult.ApiError)

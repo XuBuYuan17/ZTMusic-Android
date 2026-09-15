@@ -8,6 +8,7 @@ import com.zheting.mobile.core.network.NeteaseApi
 import com.zheting.mobile.core.network.PlaylistDetailResponse
 import com.zheting.mobile.core.network.SongDetailResponse
 import com.zheting.mobile.core.network.SongUrlResponse
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -63,7 +64,7 @@ class SongRepositoryTest {
     }
 
     @Test
-    fun dedup_and_keepsFirstOrder() {
+    fun dedup_and_keepsFirstOrder() = runTest {
         errorCode = null
         val r = repo.songsByIds(listOf("1", "1", "2"))
         val s = (r as NeteaseResult.Success).data
@@ -73,7 +74,7 @@ class SongRepositoryTest {
     }
 
     @Test
-    fun keepsInputOrder_and_placeholderForMissing() {
+    fun keepsInputOrder_and_placeholderForMissing() = runTest {
         errorCode = null
         val r = repo.songsByIds(listOf("3", "missing", "1"))
         val s = (r as NeteaseResult.Success).data
@@ -85,7 +86,7 @@ class SongRepositoryTest {
     }
 
     @Test
-    fun emptyIds_noRequest() {
+    fun emptyIds_noRequest() = runTest {
         errorCode = null
         fakeApi.requestedToSingle = listOf("*")
         val r = repo.songsByIds(emptyList())
@@ -95,7 +96,7 @@ class SongRepositoryTest {
     }
 
     @Test
-    fun apiError_surfaces() {
+    fun apiError_surfaces() = runTest {
         errorCode = -460
         val r = repo.songsByIds(listOf("1"))
         assertTrue(r is NeteaseResult.ApiError)
@@ -105,7 +106,7 @@ class SongRepositoryTest {
     }
 
     @Test
-    fun numericId_and_stringId_coexistAsStrings() {
+    fun numericId_and_stringId_coexistAsStrings() = runTest {
         errorCode = null
         val r = repo.songsByIds(listOf("10001", "abc"))
         val s = (r as NeteaseResult.Success).data
