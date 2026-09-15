@@ -120,7 +120,25 @@ URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统�
 
 1. **移除 `android-actions/setup-android@v3`**：其内部安装旧版 `tools` 包，新版 cmdline-tools（镜像 16.0）已移除 → `Failed to find package 'tools'`。改用 ubuntu-latest 镜像预装 SDK + 显式 `sdkmanager` 装 `platforms;android-*`，并写 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 到 `$GITHUB_ENV`。
 2. **`gradlew` 可执行位**：Windows 提交丢失 `+x`，Linux Runner `Permission denied` → `git update-index --chmod=+x gradlew`。
-3. **compileSdk 35 → 37**：本时间线 Maven 解析出的 Compose 1.12 / Coil 3.6.2 系 AAR `minCompileSdk` 为 37，AGP 8.9.1 上限 36。`compileSdk=37` + `android.suppressUnsupportedCompileSdk=37`（AGP 与 Gradle/Kotlin 矩阵不动；targetSdk 保持 35）。CI 装 `platforms;android-37`。README 版本矩阵同步更新。
+3. **compileSdk 试探 37（已被下方第四次修正推翻）**：本时间线 Maven 解析出的 Compose 1.12 / Coil 3.6.2 系 AAR `minCompileSdk` 为 37 → 初以 `compileSdk=37` + `android.suppressUnsupportedCompileSdk=37` 处理。
+
+## CI 第四次修正（2026-09-15，降级族：根因定位 + 版本下修）
+
+优先修复第四轮 `Warning: Failed to find package 'platforms;android-37'` 时发现：**本时间线不存在 android-37 平台**（Android 17 未发布），`compileSdk=37` 路线整体不可行 → 必须**降级依赖库**而非抬升 compileSdk。
+
+- **根因定位**：逐层核对 Maven 元数据得到完整版本链——
+  - BOM `2025.04.00` 的 pom 实际映射 compose **1.7.8**（≤35）；
+  - 真正抬高 Compose 全家到 **1.12.0（minCompileSdk=37）** 的是 `io.coil-kt.coil3:coil-compose-core-android:3.6.2` 对其的**硬依赖**（Gradle 解析取最高者，BOM 约束不敌）；26 条 AAR metadata 报错全部来自 coil 3.6.2 + compose 1.12.0 系，无其它库。
+  - `coil-compose-core-android:3.5.0` 硬依赖 compose **1.11.1**（minCompileSdk=35）。
+  - compose 1.11.4 的 module 元数据要求 kotlin-stdlib **2.1.20** → Kotlin **2.1.10 → 2.1.20**（同次版本补丁级，官方存在），避免编译器读不到新库元数据。
+- **最终版本组合（全校验过 minCompileSdk）**：
+  - Compose BOM `2025.04.00` → **`2026.06.01`**（映射 compose 1.11.4 + material3 1.4.0，ui-android 1.11.4 AAR `minCompileSdk=35`）；
+  - Coil `3.6.2` → **`3.5.0`**；
+  - `compileSdk` **37 → 36**（AGP 8.9.1 官方测试上限 36，无需 suppression）；删除 `gradle.properties` 的 `android.suppressUnsupportedCompileSdk=37`；
+  - CI 安装 `platforms;android-37` → **`platforms;android-36`**（build-tools 35.0.0 不变）；
+  - targetSdk 仍 35，minSdk 26，AGP/Gradle/Kotlin 矩阵不动；material3 1.4.0 覆盖现有全部 M3 用法。
+- **README 版本矩阵**已同步（compileSdk 36 / platform android-36 / BOM 2026.06.01 / Coil 3.5.0，并去重重复的 applicationId 行）。
+- 尚未推送提交。推送触发 CI 后，若仍报 AAR metadata，则逐条看是否还有隐藏的 1.12.0 传递引入者。
 
 ## Loop 6 · Mini Player + 全屏播放器布局与交互（代码已就绪，等待 CI 验证）
 

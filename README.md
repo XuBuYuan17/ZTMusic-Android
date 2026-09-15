@@ -11,14 +11,13 @@ Kotlin + Jetpack Compose + Material 3。当前处于阶段 1：工程骨架 + �
 | 组件 | 版本 | 依据 |
 |---|---|---|
 | Gradle | 8.11.1 | [AGP 8.9 官方兼容表](https://developer.android.com/build/releases/agp-8-9-0-release-notes) 的最低/默认版本 |
-| Android Gradle Plugin | 8.9.1 | 同上，上限 compileSdk 35 |
+| Android Gradle Plugin | 8.9.1 | 同上，官方测试上限 compileSdk 36 |
 | JDK | 17 | 同上（最小要求） |
-| Build Tools / Platform | 35.0.0 / android-37 | CI 安装（见 workflow）；bash 装 SDK |
-| Kotlin | 2.1.10 | Kotlin 稳定版 |
-| Jetpack Compose BOM | 2025.04.00 | [Compose↔Kotlin 兼容映射](https://developer.android.com/jetpack/compose/kotlin)：Kotlin 2.1.10 |
+| Build Tools / Platform | 35.0.0 / android-36 | CI 安装（见 workflow）；bash 装 SDK |
+| Kotlin | 2.1.20 | Kotlin 稳定版（Compose 1.11 线要求 stdlib ≥2.1.20） |
+| Jetpack Compose BOM | 2026.06.01（compose 1.11.4 · material3 1.4.0） | [Compose↔Kotlin 兼容映射](https://developer.android.com/jetpack/compose/kotlin)：Kotlin 2.1.20 |
 | Navigation Compose | 2.8.9 | androidx 稳定版 |
-| compileSdk / targetSdk / minSdk | 37 / 35 / 26 | 依赖要求 37：本环境解析出的 Compose 1.12 / Coil 3.6.2 的 AAR minCompileSdk 为 37；AGP 8.9.1 官方测试上限为 36，以 `android.suppressUnsupportedCompileSdk=37` 压制提示 |
-| applicationId | `com.zheting.mobile` | 与原 Tauri Android 版（`zheting`）独立，可并存安装 |
+| compileSdk / targetSdk / minSdk | 36 / 35 / 26 | AGP 8.9.1 官方测试上限为 36；Compose BOM 2026.06.01（compose 1.11.4）minCompileSdk=35、Coil 3.5.0（依赖 compose 1.11.1）≤36 —— 全库均 ≤36，无需压制提示 |
 | applicationId | `com.zheting.mobile` | 与原 Tauri Android 版（`zheting`）独立，可并存安装 |
 
 版本号由 `gradle/libs.versions.toml` 统一管理，禁止动态版本。
