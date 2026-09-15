@@ -1,7 +1,6 @@
 package com.zheting.mobile.core.network
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.parseToJsonElement
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor

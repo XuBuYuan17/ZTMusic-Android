@@ -41,7 +41,10 @@ class PlaylistRepository(
                     PlaylistChunk(r.data, loaded, loaded < remaining.size),
                 )
             }
-            else -> r
+            // 失败类型是 NeteaseResult<Nothing>（协变），逐条显式回收避免整体类型发钝为 Any
+            is NeteaseResult.ApiError -> NeteaseResult.ApiError(r.code, r.message)
+            is NeteaseResult.NetworkError -> NeteaseResult.NetworkError(r.cause)
+            is NeteaseResult.ParseError -> NeteaseResult.ParseError(r.cause, r.message)
         }
     }
 

@@ -39,7 +39,7 @@ import com.zheting.mobile.ui.theme.Spacing
 fun HomeScreen(
     modifier: Modifier = Modifier,
     onPlaylistClick: (playlistId: String) -> Unit = {},
-    onSongClick: (songs: List<Song>, index: Int) -> Unit = {},
+    onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory()),
 ) {
     val uiState by viewModel.uiState.collectAsState()

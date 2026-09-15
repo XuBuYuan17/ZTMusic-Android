@@ -55,7 +55,7 @@ import com.zheting.mobile.ui.theme.Spacing
 @Composable
 fun SearchScreen(
     modifier: Modifier = Modifier,
-    onSongClick: (songs: List<Song>, index: Int) -> Unit = {},
+    onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory()),
 ) {
     val uiState by viewModel.uiState.collectAsState()

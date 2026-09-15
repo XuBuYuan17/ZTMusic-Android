@@ -85,7 +85,7 @@ class PlaybackUrlResolverImpl(
         return candidates
     }
 
-    private fun <T> uriCall(timeoutMs: Long, block: suspend () -> T): T? =
+    private suspend fun <T> uriCall(timeoutMs: Long, block: suspend () -> T): T? =
         withTimeoutOrNull(timeoutMs) { block() }
 
     /** http://*.music.126.net 统一升级为 https，其余原样 trim 返回。 */

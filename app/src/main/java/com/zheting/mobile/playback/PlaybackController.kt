@@ -37,6 +37,26 @@ class PlaybackController(
     private var isLoading = false
     private var progressJob: Job? = null
 
+    /** 需在 init 前初始化（init 里 addListener 会访问它）。 */
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            pushState()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_ENDED && player.playWhenReady) {
+                next() // 顺序队列到末尾自动回卷下一首
+                return
+            }
+            pushState()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            // 换源逻辑由 sink 在装载挂起点处理；这里只负责状态同步
+            pushState()
+        }
+    }
+
     init {
         player.addListener(playerListener)
         progressJob = scope.launch {
@@ -141,25 +161,6 @@ class PlaybackController(
                 _uiState.update { it.copy(error = "当前歌曲暂无可用音源") }
                 pushState()
             }
-        }
-    }
-
-    private val playerListener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            pushState()
-        }
-
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_ENDED && player.playWhenReady) {
-                next() // 顺序队列到末尾自动回卷下一首
-                return
-            }
-            pushState()
-        }
-
-        override fun onPlayerError(error: PlaybackException) {
-            // 换源逻辑由 sink 在装载挂起点处理；这里只负责状态同步
-            pushState()
         }
     }
 

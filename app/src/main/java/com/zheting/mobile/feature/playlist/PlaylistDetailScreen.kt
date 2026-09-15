@@ -53,7 +53,7 @@ fun PlaylistDetailScreen(
     playlistId: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onSongClick: (songs: List<Song>, index: Int) -> Unit = {},
+    onSongClick: (songs: List<Song>, index: Int) -> Unit = { _, _ -> },
     viewModel: PlaylistDetailViewModel = viewModel(
         key = "playlist_$playlistId",
         factory = PlaylistDetailViewModel.factory(playlistId),

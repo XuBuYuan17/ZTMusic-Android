@@ -1,7 +1,6 @@
 package com.zheting.mobile.data.mapper
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.parseToJsonElement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

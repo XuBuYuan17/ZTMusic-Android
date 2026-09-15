@@ -34,7 +34,8 @@ class SessionRepository(
                 session.clearCookie()
                 SessionStatus.NotLoggedIn
             } else {
-                resolveUser(res) ?: SessionStatus.NotLoggedIn
+                val user = resolveUser(res)
+                if (user != null) SessionStatus.LoggedIn(user) else SessionStatus.NotLoggedIn
             }
         } catch (e: CancellationException) {
             throw e
