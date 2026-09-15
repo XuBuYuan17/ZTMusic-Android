@@ -25,13 +25,20 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK command-line tools
-        uses: android-actions/setup-android@v3
-
-      - name: Install Platform and Build-Tools
+      # Runner 镜像预装 Android SDK；不依赖第三方 setup-android action
+      # （该 action 内部安装旧版 "tools" 包，新版 cmdline-tools 已移除 → 失败）
+      - name: Set up Android SDK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          [ -d "$ANDROID_HOME" ] || { echo "no Android SDK at $ANDROID_HOME"; exit 1; }
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMGR" ] || SDKMGR="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
+          [ -x "$SDKMGR" ] || { echo "no sdkmanager found"; ls "$ANDROID_HOME/cmdline-tools/"; exit 1; }
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          "$SDKMGR" --install "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
