@@ -65,7 +65,7 @@ class SongMapperTest {
         val s = song(
             """
             {"resourceExtInfo":{"songData":{"ext":{"song":{"id":11,"name":"e",
-             "ar":[{"id":12,"name":"E"}],"al":{"id":13,"name":"ee"}}}}}
+             "ar":[{"id":12,"name":"E"}],"al":{"id":13,"name":"ee"}}}}}}
             """.trimIndent(),
         )!!
         assertEquals("11", s.id)
