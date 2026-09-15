@@ -88,7 +88,7 @@ class PlaybackUrlResolverImpl(
     private suspend fun <T> uriCall(timeoutMs: Long, block: suspend () -> T): T? =
         withTimeoutOrNull(timeoutMs) { block() }
 
-    /** http://*.music.126.net 统一升级为 https，其余原样 trim 返回。 */
+    /** music.126.net 域下 http 地址统一升级为 https，其余原样 trim 返回。 */
     internal fun normalizeUrl(url: String?): String? {
         if (url.isNullOrBlank()) return null
         val t = url.trim()

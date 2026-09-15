@@ -145,12 +145,13 @@ URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统�
 
 版本问题彻底解决后，`testDebugUnitTest` 首次把业务代码真正编译一遍，暴露 Loop 5/6 代码中从未被编译器验证过的一批真实编译错误（此前仅静态自查）。已逐类修复：
 
-1. **`PlaybackUrlResolverImpl.uriCall` 非 suspend 调 `withTimeoutOrNull`**（根因）：编译器在此终止解析，导致其后的常量/`normalizeUrl`/扩展函数全部「未注册成符号」→ 出现十几个级联的 `Unresolved reference` 与 `Unclosed comment`。改 `uriCall` 为 `private suspend fun <T>` 一处即整体恢复。
-2. **`PlaybackController.playerListener` 声明在 `init` 之后**：Kotlin 禁止 init 访问未初始化成员 → 把监听器定义提前到 init 前。
-3. **顶层 `kotlinx.serialization.json.parseToJsonElement` import 失效**：本版本 kotlinx-serialization 已无该顶层扩展（`Json.parseToJsonElement` 成员可用）→ 移除 `SessionInterceptor` 与 `PlaylistMapperTest`/`SongMapperTest` 中该 import。
-4. **`SessionRepository` elvis 类型发钝**：`resolveUser(res) ?: SessionStatus.NotLoggedIn` 的 elvis 类型为 `lub(AuthUser, SessionStatus)=Any` → 改为显式 `if (user != null) LoggedIn(user) else NotLoggedIn`，**顺带修正了原代码从不返回 `LoggedIn` 的语义缺陷**。
-5. **`PlaylistRepository.nextChunk` `else -> r` 整体类型发钝为 `NeteaseResult<Any>`** → 失败子类型（`NeteaseResult<Nothing>`，协变）逐条显式回收。
-6. **三个页面 `onSongClick = {}`**：双参 lambda 默认值不合法 → `{ _, _ -> }`。
+1. **`PlaybackUrlResolverImpl` 第 91 行注释含嵌套块注释开头**（最终根因，31 个级联错误）：`/** http://*.music.126.net ... */` 中 `//*` 的「第二个 `/` + `*`」在 Kotlin 里会打开**嵌套块注释** → 外层 KDoc 未真正闭合，其后整个文件（`normalizeUrl`/companion 常量/两个扩展函数）被吞进注释 → 全部 `Unresolved reference` + `Missing }`/`Unclosed comment` 指向 EOF。改注释文案避开 `//*` 序列即整体恢复。
+2. **`uriCall` 非 suspend 调 `withTimeoutOrNull`**（另一处真实错误，`89:9` 单独报）：改 `private suspend fun <T>`。
+3. **`PlaybackController.playerListener` 声明在 `init` 之后**：Kotlin 禁止 init 访问未初始化成员 → 把监听器定义提前到 init 前。
+4. **顶层 `kotlinx.serialization.json.parseToJsonElement` import 失效**：本版本 kotlinx-serialization 已无该顶层扩展（`Json.parseToJsonElement` 成员可用）→ 移除 `SessionInterceptor` 与 `PlaylistMapperTest`/`SongMapperTest` 中该 import。
+5. **`SessionRepository` elvis 类型发钝**：`resolveUser(res) ?: SessionStatus.NotLoggedIn` 的 elvis 类型为 `lub(AuthUser, SessionStatus)=Any` → 改为显式 `if (user != null) LoggedIn(user) else NotLoggedIn`，**顺带修正了原代码从不返回 `LoggedIn` 的语义缺陷**。
+6. **`PlaylistRepository.nextChunk` `else -> r` 整体类型发钝为 `NeteaseResult<Any>`** → 失败子类型（`NeteaseResult<Nothing>`，协变）逐条显式回收。
+7. **三个页面 `onSongClick = {}`**：双参 lambda 默认值不合法 → `{ _, _ -> }`。
 
 上述修改**尚未编译验证**（本机无环境），已提交待 CI 验证。
 
