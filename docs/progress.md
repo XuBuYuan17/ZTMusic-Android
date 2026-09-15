@@ -241,6 +241,25 @@ URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统�
 | 歌单按 trackIds 序补全、每批 50、缺歌占位 | `services/details.ts` | `PlaylistRepository.nextChunk` |
 | 批量 songDetail 去重、上限 500、按序回填 | `services/details.ts` | `SongRepository.songsByIds` |
 
+## Loop 1-6 CI 修复记录（2026-09-15 全绿）
+
+从 `compileDebugAarMetadata` → `compileDebugKotlin` → `compileDebugUnitTestKotlin` →
+`testDebugUnitTest` → `lintDebug` → `assembleDebug` 全部通过，`app-debug.apk` 已上传 artifact（~23MB）。
+
+| 轮次 | 故障 | 根因 | 修复 |
+|---|---|---|---|
+| Run 1 | `setup-android@v3` 找不到 `tools` | 第三方 action 损坏 | 移除，用内置 SDK + 显式 sdkmanager |
+| Run 2 | `./gradlew` Permission denied | 可执行位丢失 | `git update-index --chmod=+x gradlew` |
+| Run 3 | checkDebugAarMetadata 26 issues | Compose 1.12/Coil 3.6 要求 minCompileSdk 37 | 降级：BOM 2026.06.01（ui 1.11.4）+ coil 3.2.0，compileSdk 36 |
+| Run 4 | `platforms;android-37` 找不到 | android-17（37）未发布 | CI 改装 android-36 |
+| Run 5 | Kotlin 编译 ICE | classpath 混入 stdlib 2.4.0（coil 3.5 传染） | coil 3.2.0 + kotlin 2.1.20 |
+| Run 6 | 39 个编译错误 | 真实 code errors | uriCall suspend、playerListener 声明序、parseToJsonElement import、elvis Any、`{}` lambda 默认值等 9 簇 |
+| Run 7 | 31 个级联错误 | `/** http://*.music.126.net */` 里 `//*` 触发嵌套块注释 | 改写注释文字 |
+| Run 8-9 | 测试编译：裸调 suspend | 4 个测试文件未包 runTest | 全部 `= runTest { }` |
+| Run 10 | `resourceExtInfo…ext_song` JSON 解析炸 | 7 个 `{` 对 6 个 `}` | 补尾括号 |
+| Run 11-13 | lint 15→6→0 | 类级 `@UnstableApi` 对外传播 + lint 只认 androidx.annotation.OptIn | 改类内 `@OptIn(UnstableApi::class)`（import androidx 版） |
+| 终轮 | — | — | **BUILD SUCCESSFUL（test 66 / lint 0 err / assembleDebug）** |
+
 ## 下一阶段入口
 
 - 待 Loop 5+6 CI 验证通过后，按序推进 **Loop 7 · Mini → 全屏连续过渡**：
