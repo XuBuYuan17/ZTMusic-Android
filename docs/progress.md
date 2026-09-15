@@ -114,6 +114,14 @@
 **已知边界**：循环/随机播放模式与播放模式 UI 未做（Loop 6 / 后续）；播放器 UI（Mini/全屏）未接入（Loop 6）；
 URL 持久缓存/预取未做（Loop 5 明示暂缓）；媒体通知为系统默认样式，视觉精细化留给 Loop 10。
 
+## CI 首跑修正（2026-09-15，已推送并逐个打通前三步）
+
+干净 Runner 首次运行逐轮暴露 3 个环境层问题（与业务代码无关），依次修复：
+
+1. **移除 `android-actions/setup-android@v3`**：其内部安装旧版 `tools` 包，新版 cmdline-tools（镜像 16.0）已移除 → `Failed to find package 'tools'`。改用 ubuntu-latest 镜像预装 SDK + 显式 `sdkmanager` 装 `platforms;android-*`，并写 `ANDROID_HOME`/`ANDROID_SDK_ROOT` 到 `$GITHUB_ENV`。
+2. **`gradlew` 可执行位**：Windows 提交丢失 `+x`，Linux Runner `Permission denied` → `git update-index --chmod=+x gradlew`。
+3. **compileSdk 35 → 37**：本时间线 Maven 解析出的 Compose 1.12 / Coil 3.6.2 系 AAR `minCompileSdk` 为 37，AGP 8.9.1 上限 36。`compileSdk=37` + `android.suppressUnsupportedCompileSdk=37`（AGP 与 Gradle/Kotlin 矩阵不动；targetSdk 保持 35）。CI 装 `platforms;android-37`。README 版本矩阵同步更新。
+
 ## Loop 6 · Mini Player + 全屏播放器布局与交互（代码已就绪，等待 CI 验证）
 
 **目标**：两个播放器界面（底部导航上方 Mini + 全屏）连接同一个 `PlaybackController`，真实加载/播放/暂停/错误状态；队列入口与展示；进度条拖动预览、松手提交 seek。**本轮只做静态布局与简单过渡，Mini→全屏连续动画留给 Loop 7。**

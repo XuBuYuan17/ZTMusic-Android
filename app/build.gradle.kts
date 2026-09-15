@@ -7,7 +7,8 @@ plugins {
 
 android {
     namespace = "com.zheting.mobile"
-    compileSdk = 35
+    // Compose 1.12 / Coil 3.6.2 在本时间线解析中要求 compileSdk ≥ 37（AAR minCompileSdk）
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.zheting.mobile"

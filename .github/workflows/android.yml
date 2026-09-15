@@ -38,7 +38,7 @@ jobs:
           [ -x "$SDKMGR" ] || SDKMGR="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)"
           [ -x "$SDKMGR" ] || { echo "no sdkmanager found"; ls "$ANDROID_HOME/cmdline-tools/"; exit 1; }
           yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
-          "$SDKMGR" --install "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMGR" --install "platforms;android-37" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
