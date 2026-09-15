@@ -1,0 +1,9 @@
+# 保证跨平台 checkout 行为一致：
+* text=auto
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
+*.jks binary
+*.keystore binary

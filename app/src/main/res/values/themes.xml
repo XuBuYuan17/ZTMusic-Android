@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 全权接管主题；此处仅提供系统壳主题，避免启动时背景闪烁 -->
+    <style name="Theme.ZTMusic" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.ZTMusic.Dark" parent="android:Theme.Material.NoActionBar" />
+</resources>
